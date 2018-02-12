@@ -13,10 +13,12 @@ class VersionError(Exception):
         return repr(self.value)
 
 
-class TypeConstructor(enum.Enum):
+class CustomEnum(enum.IntEnum):
     def __repr__(self):
         return f"T<{self.name}>"
 
+
+class TypeConstructor(CustomEnum):
     i32 = 0x7f
     i64 = 0x7e
     f32 = 0x7d
@@ -26,19 +28,23 @@ class TypeConstructor(enum.Enum):
     empty_block = 0x40
 
 
-class ExternalKind(enum.Enum):
-    def __repr__(self):
-        return f"Ext<{self.name}>"
-
+class ExternalKind(CustomEnum):
     Function = 0
     Table = 1
     Memory = 2
     Global = 3
 
 
+class NameType(CustomEnum):
+    Module = 0
+    Function = 1
+    Local = 2
+
+
 class ParseData:
     def __init__(self):
         self.custom_sections = []
+        self.name_section = None
         self.type_section = None
         self.import_section = None
         self.function_section = None
@@ -77,6 +83,9 @@ class Parser:
     def readBytes(self, l):
         self.file_offset += l
         return self.file.read(l)
+
+    def readUTF8(self, l):
+        return self.readBytes(l).decode("utf-8")
 
     def readUInt(self,l):
         return int.from_bytes(self.readBytes(l), byteorder='little')
@@ -162,6 +171,18 @@ class Parser:
         entry = (elem_type, limits)
         return entry
 
+    def read_name_map(self):
+        count = self.readVarUint(32)
+        names = []
+        for i in range(count):
+            index = self.readVarUint(32)
+            name_len = self.readVarUint(32)
+            name_str = self.readUTF8(name_len)
+            naming = (index, name_str)
+            names.append(naming)
+        return names
+
+
     # section parsing
 
     def parse_preamble(self):
@@ -191,52 +212,95 @@ class Parser:
             print ("[id = %d]" % sec_id)
         payload_data_len = payload_len - len(name_bytes) - name_len_size
         if sec_id == 0x0:
-            self.resData.custom_sections.append(self.parse_custom_section(name, payload_data_len))
+            if name == "name":
+                self.resData.name_section = self.parse_name_custom_section(payload_data_len)
+            else:
+                self.resData.custom_sections.append(self.parse_custom_section(name, payload_data_len)) # some other custom section
         elif sec_id == 0x1:
-            self.resData.type_section = self.parse_type_section(name, payload_data_len)
+            self.resData.type_section = self.parse_type_section(payload_data_len)
         elif sec_id == 0x2:
-            self.resData.import_section = self.parse_import_section(name, payload_data_len)
+            self.resData.import_section = self.parse_import_section(payload_data_len)
         elif sec_id == 0x3:
-            self.resData.function_section = self.parse_function_section(name, payload_data_len)
+            self.resData.function_section = self.parse_function_section(payload_data_len)
         elif sec_id == 0x4:
-            self.resData.table_section = self.parse_table_section(name, payload_data_len)
+            self.resData.table_section = self.parse_table_section(payload_data_len)
         elif sec_id == 0x5:
-            self.resData.memory_section = self.parse_memory_section(name, payload_data_len)
+            self.resData.memory_section = self.parse_memory_section(payload_data_len)
         elif sec_id == 0x6:
-            self.resData.global_section = self.parse_global_section(name, payload_data_len)
+            self.resData.global_section = self.parse_global_section(payload_data_len)
         elif sec_id == 0x7:
-            self.resData.export_section = self.parse_export_section(name, payload_data_len)
+            self.resData.export_section = self.parse_export_section(payload_data_len)
         elif sec_id == 0x8:
-            self.resData.start_section = self.parse_start_section(name, payload_data_len)
+            self.resData.start_section = self.parse_start_section(payload_data_len)
         elif sec_id == 0x9:
-            self.resData.element_section = self.parse_element_section(name, payload_data_len)
+            self.resData.element_section = self.parse_element_section(payload_data_len)
         elif sec_id == 0xA:
-            self.resData.code_section = self.parse_code_section(name, payload_data_len)
+            self.resData.code_section = self.parse_code_section(payload_data_len)
         elif sec_id == 0xB:
-            self.resData.data_section = self.parse_data_section(name, payload_data_len)
+            self.resData.data_section = self.parse_data_section(payload_data_len)
         else:
             raise Exception("Unknown Section ID" + str(sec_id))
         print(" ++ Done parsing section")
+
+    def parse_name_custom_section(self, payload_len):
+        print("  # Parsing name custom section")
+        init_offset = self.get_current_offset()
+        name_module_section = None
+        name_function_section = None
+        name_local_section = None
+        name_subsections = []
+        while self.get_read_len(init_offset) < payload_len:
+            name_type = NameType(self.readVarUint(7))
+            name_payload_len = self.readVarUint(32)
+            # enforce ordering and uniqueness of the sections with assertions
+            if name_type == NameType.Module:
+                assert name_module_section is None and name_function_section is None and name_local_section is None
+                name_len = self.readVarUint(32)
+                name_str = self.readUTF8(name_len)
+                name_module_section = (name_str,)
+            elif name_type == NameType.Function:
+                assert name_function_section is None and name_local_section is None
+                name_map = self.read_name_map()
+                name_function_section = name_map
+            elif name_type == NameType.Local:
+                assert name_local_section is None
+                count = self.readVarUint(32)
+                funcs = []
+                for i in range(count):
+                    index = self.readVarUint(32)
+                    local_map = self.read_name_map()
+                    func = (index, local_map)
+                    funcs.append(func)
+                name_local_section = funcs
+            else:
+                name_payload_data = self.readBytes(name_payload_len)
+                name_payload = name_payload_data
+                subsection = (name_type, name_payload)
+                name_subsections.append(subsection)
+        assert self.get_read_len(init_offset) == payload_len
+        result = (name_module_section, name_function_section, name_local_section, name_subsections)
+        print(result)
+        print("  + Parsing name custom section done")
+        return result
+
 
     def parse_custom_section(self, name, payload_len):
         print("  # Parsing custom section")
         payload = self.readBytes(payload_len)
         print("Custom Section Data [len={:d}] = {}...".format(payload_len, payload[:32]))
         print("  + Parsing custom section done")
-        return payload
+        return name, payload
 
-    def parse_import_section(self, name, payload_len):
+    def parse_import_section(self, payload_len):
         print("  # Parsing import section")
         init_offset = self.get_current_offset()
         count= self.readVarUint(32)
         entries = []
         for i in range(count):
             module_len = self.readVarUint(32)
-            module_str_bytes = self.readBytes(module_len)
-            module_str = module_str_bytes.decode("utf-8")
+            module_str = self.readUTF8(module_len)
             field_len = self.readVarUint(32)
-            field_str_bytes = self.readBytes(field_len)
-            field_str = field_str_bytes.decode("utf-8")
+            field_str = self.readUTF8(field_len)
             kind = ExternalKind(self.readUInt(1))
             if kind == ExternalKind.Function:
                 type = self.readVarUint(32)
@@ -255,7 +319,7 @@ class Parser:
         print("  + Parsing import section done")
         return entries
 
-    def parse_type_section(self, name, payload_len):
+    def parse_type_section(self, payload_len):
         print("  # Parsing type section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -275,7 +339,7 @@ class Parser:
         return param_type
 
 
-    def parse_function_section(self, name, payload_len):
+    def parse_function_section(self, payload_len):
         print("  # Parsing function section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -289,7 +353,7 @@ class Parser:
         return types
 
 
-    def parse_table_section(self, name, payload_len):
+    def parse_table_section(self, payload_len):
         print("  # Parsing table section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -302,7 +366,7 @@ class Parser:
         print("  + Parsing table section done")
         return entries
 
-    def parse_memory_section(self, name, payload_len):
+    def parse_memory_section(self, payload_len):
         print("  # Parsing memory section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -315,7 +379,7 @@ class Parser:
         print("  + Parsing memory section done")
         return entries
 
-    def parse_global_section(self, name, payload_len):
+    def parse_global_section(self, payload_len):
         print("  # Parsing global section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -349,13 +413,14 @@ class Parser:
         return self.readVarInt(64)
 
     def ui32PL(self):
-        return self.readUInt(4), 4
+        return self.readUInt(4)
 
     def ui64PL(self):
-        return self.readUInt(8), 8
+        return self.readUInt(8)
 
     def blockTypePL(self):
-        return self.readVarInt(7)
+        val = self.readVarInt(7)
+        return TypeConstructor(val)
 
     def brTablePL(self):
         target_count = self.readVarUint(32)
@@ -364,17 +429,17 @@ class Parser:
             entry = self.readVarUint(32)
             target_table.append(entry)
         default_target = self.readVarUint(32)
-        return (target_count, target_table, default_target)
+        return target_count, target_table, default_target
 
     def callIndPL(self):
         type_index = self.readVarUint(32)
         reserved = self.readVarUint(1)
-        return (type_index, reserved)
+        return type_index, reserved
 
     def memImmPL(self):
         flags = self.readVarUint(32)
         offset = self.readVarUint(32)
-        return (flags, offset)
+        return flags, offset
 
     class OpcodeFn:
         def __init__(self):
@@ -447,7 +512,7 @@ class Parser:
         payload= parser()
         return Op(op, payload)
 
-    def read_opcode(self, file=None):
+    def read_opcode(self):
         byte = self.readUInt(1)
         op = Opcode(byte)
         payloadFn = self.opFn.get_parser(op)
@@ -462,15 +527,14 @@ class Parser:
         return content_type, mutability
 
 
-    def parse_export_section(self, name, payload_len):
+    def parse_export_section(self, payload_len):
         print("  # Parsing export section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
         entries = []
         for i in range(count):
             field_len = self.readVarUint(32)
-            field_str_bytes = self.readBytes(field_len)
-            field_str = field_str_bytes.decode("utf-8")
+            field_str = self.readUTF8(field_len)
             kind = ExternalKind(self.readUInt(1))
             index = self.readVarUint(32)
             entries.append((field_str, kind, index))
@@ -480,7 +544,7 @@ class Parser:
         return entries
 
 
-    def parse_start_section(self, name, payload_len):
+    def parse_start_section(self, payload_len):
         print("  # Parsing start section")
         index, len = self.readVarUintLen(32)
         assert len == payload_len
@@ -489,7 +553,7 @@ class Parser:
         return index
 
 
-    def parse_element_section(self, name, payload_len):
+    def parse_element_section(self, payload_len):
         print("  # Parsing element section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -509,7 +573,7 @@ class Parser:
         print("  + Parsing element section done")
         return entries
 
-    def parse_code_section(self, name, payload_len):
+    def parse_code_section(self, payload_len):
         print("  # Parsing code section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)
@@ -540,7 +604,8 @@ class Parser:
         print("  + Parsing code section done")
         return bodies
 
-    def parse_data_section(self, name, payload_len):
+    def parse_data_section(self, payload_len):
+        assert self.resData.name_section is None # custom name section needs to be parsed after the data section!
         print("  # Parsing data section")
         init_offset = self.get_current_offset()
         count = self.readVarUint(32)

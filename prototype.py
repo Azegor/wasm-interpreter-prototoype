@@ -36,6 +36,7 @@ def runMainFn():
 
 def main():
     filename = sys.argv[1]
+    print(f"Parsing '{filename}'")
     with open(filename, "rb") as f:
         p = parser.Parser(f)
         res = p.parse()

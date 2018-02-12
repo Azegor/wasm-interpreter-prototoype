@@ -22,7 +22,7 @@ def createStructures(data):
     for i in range(len(data.function_section)):
         fn_type_idx = fns[i]
         fn_type = types[fn_type_idx]
-        assert fn_type[0] == parser.type_constr.func or fn_type[0] == parser.type_constr.anyfunc
+        assert fn_type[0] == parser.TypeConstructor.func or fn_type[0] == parser.TypeConstructor.anyfunc
         fn_body = bodies[i]
         fn = Function(fn_type, fn_body)
         functions.append(fn)

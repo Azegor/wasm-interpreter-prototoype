@@ -17,7 +17,10 @@ class VersionError(Exception):
         return repr(self.value)
 
 
-class value_type(enum.Enum):
+class type_constr(enum.Enum):
+    def __repr__(self):
+        return f"T<{self.name}>"
+
     i32 = 0x7f
     i64 = 0x7e
     f32 = 0x7d
@@ -26,8 +29,16 @@ class value_type(enum.Enum):
     func = 0x60
     empty_block = 0x40
 
+def read_type_constr(f):
+    byte, l = readVarInt(f, 7)
+    type_c = type_constr(byte)
+    return type_c, l
+
 
 class Opcode(enum.Enum):
+    def __repr__(self):
+        return f"Op<{self.name}>"
+
     #control flow operators
     unreachable = 0x00
     nop = 0x01
@@ -220,8 +231,10 @@ class Opcode(enum.Enum):
     f32_reinterpret_i32 = 0xbe
     f64_reinterpret_i64 = 0xbf
 
-
 class external_kind(enum.Enum):
+    def __repr__(self):
+        return f"Ext<{self.name}>"
+
     Function = 0
     Table = 1
     Memory = 2
@@ -243,7 +256,7 @@ def readVarUint(f, l):
     len = 0
     while True:
         len += 1
-        byte = int.from_bytes(f.read(1), byteorder="little")
+        byte = readUInt(f, 1)
         res |= (0x7f & byte) << shift
         if (byte & 0x80) == 0:
             break
@@ -258,7 +271,7 @@ def readVarInt(f, l):
     len = 0
     while True:
         len += 1
-        byte = int.from_bytes(f.read(1), byteorder="little")
+        byte = readUInt(f, 1)
         res |= (0x7f & byte) << shift
         shift += 7
         if (byte & 0x80) == 0:
@@ -280,7 +293,26 @@ def parse_preamble(f):
     print(" OK")
 
 
+class Data:
+    def __init__(self):
+        self.custom_sections = []
+        self.type_section = None
+        self.import_section = None
+        self.function_section = None
+        self.table_section = None
+        self.memory_section = None
+        self.global_section = None
+        self.export_section = None
+        self.start_section = None
+        self.element_section = None
+        self.code_section = None
+        self.data_section = None
+
+data = Data()
+
+
 def parse_section(f):
+    global data
     print(" ## Parsing section ...", end="")
     sec_id, _ = readVarUint(f, 7)
     payload_len, _ = readVarUint(f, 32)
@@ -296,29 +328,29 @@ def parse_section(f):
         print ("[id = %d]" % sec_id)
     payload_data_len = payload_len - len(name_bytes) - name_len_size
     if sec_id == 0x0:
-        parse_custom_section(name, f, payload_data_len)
+        data.custom_sections.append(parse_custom_section(name, f, payload_data_len))
     elif sec_id == 0x1:
-        parse_type_section(name, f, payload_data_len)
+        data.type_section = parse_type_section(name, f, payload_data_len)
     elif sec_id == 0x2:
-        parse_import_section(name, f, payload_data_len)
+        data.import_section = parse_import_section(name, f, payload_data_len)
     elif sec_id == 0x3:
-        parse_function_section(name, f, payload_data_len)
+        data.function_section = parse_function_section(name, f, payload_data_len)
     elif sec_id == 0x4:
-        parse_table_section(name, f, payload_data_len)
+        data.table_section = parse_table_section(name, f, payload_data_len)
     elif sec_id == 0x5:
-        parse_memory_section(name, f, payload_data_len)
+        data.memory_section = parse_memory_section(name, f, payload_data_len)
     elif sec_id == 0x6:
-        parse_global_section(name, f, payload_data_len)
+        data.global_section = parse_global_section(name, f, payload_data_len)
     elif sec_id == 0x7:
-        parse_export_section(name, f, payload_data_len)
+        data.export_section = parse_export_section(name, f, payload_data_len)
     elif sec_id == 0x8:
-        parse_start_section(name, f, payload_data_len)
+        data.start_section = parse_start_section(name, f, payload_data_len)
     elif sec_id == 0x9:
-        parse_element_section(name, f, payload_data_len)
+        data.element_section = parse_element_section(name, f, payload_data_len)
     elif sec_id == 0xA:
-        parse_code_section(name, f, payload_data_len)
+        data.code_section = parse_code_section(name, f, payload_data_len)
     elif sec_id == 0xB:
-        parse_data_section(name, f, payload_data_len)
+        data.data_section = parse_data_section(name, f, payload_data_len)
     else:
         raise Exception("Unknown Section ID" + str(sec_id))
     print(" ++ Done parsing section")
@@ -375,14 +407,15 @@ def parse_import_section(name, f, payload_len):
 
 def parse_type_section(name, f, payload_len):
     print("  # Parsing type section")
-    count, len = readVarUint(f, 32)
-    payload_len -= len
+    total_len = 0
+    count, l = readVarUint(f, 32)
+    total_len += l
     types = []
-    while payload_len > 0:
-        fnType, fnType_len = read_fn_type(f)
-        payload_len -= fnType_len
+    while total_len < payload_len:
+        fnType, l = read_fn_type(f)
+        total_len += l
         types.append(fnType)
-    assert payload_len == 0
+    assert total_len == payload_len
     print(types)
     print("  + Parsing type section done")
     return types
@@ -390,7 +423,7 @@ def parse_type_section(name, f, payload_len):
 
 def read_fn_type(f):
     total_len = 0
-    form, l = readVarUint(f, 7)
+    form, l = read_type_constr(f)
     total_len += l
     param_count, l = readVarUint(f, 32)
     total_len += l
@@ -406,12 +439,12 @@ def read_fn_type(f):
         return_type, l = parse_value_type(f)
         total_len += l
         return_types.append(return_type)
-    return (form, param_count, param_types, return_count, return_types), total_len
+    return (form, param_types, return_types), total_len
 
 
 def parse_value_type(f):
     ptype, l = readVarUint(f, 7)
-    param_type = value_type(ptype)
+    param_type = type_constr(ptype)
     return param_type, l
 
 
@@ -524,14 +557,18 @@ def parse_init_expr(f):
     assert res == 0x0b
     return op, l + 1
 
+
 def TODO(f):
     raise Exception("IMPLEMENT PAYLOAD PARSING")
+
 
 def vui1PL(f):
     return readVarUint(f, 1)
 
+
 def vui32PL(f):
     return readVarUint(f, 32)
+
 
 def vui64PL(f):
     return readVarUint(f, 64)
@@ -539,14 +576,18 @@ def vui64PL(f):
 def vi32PL(f):
     return readVarInt(f, 32)
 
+
 def vi64PL(f):
     return readVarInt(f, 64)
+
 
 def ui32PL(f):
     return readUInt(f, 4), 4
 
+
 def ui64PL(f):
     return readUInt(f, 8), 8
+
 
 def blockTypePL(f):
     return readVarInt(f, 7)
@@ -565,6 +606,7 @@ def brTablePL(f):
     total_len += l
     return (target_count, target_table, default_target), total_len
 
+
 def callIndPL(f):
     total_len = 0
     type_index, l = readVarUint(f, 32)
@@ -572,6 +614,7 @@ def callIndPL(f):
     reserved, l = readVarUint(f, 1)
     total_len += l
     return (type_index, reserved), total_len
+
 
 def memImmPL(f):
     total_len = 0
@@ -581,67 +624,95 @@ def memImmPL(f):
     total_len += l
     return (flags, offset), total_len
 
-opcodeParsers = {
-    Opcode.block: blockTypePL,
-    Opcode.loop: blockTypePL,
-    Opcode._if: blockTypePL,
-    Opcode.br: vui32PL,
-    Opcode.br_if: vui32PL,
-    Opcode.br_table: brTablePL,
 
-    Opcode.call: vui32PL,
-    Opcode.call_indirect: callIndPL,
+class Op:
+    def __init__(self, opcode, payload):
+        self.opcode = opcode
+        self.payload = payload
 
-    Opcode.get_local: vui32PL,
-    Opcode.set_local: vui32PL,
-    Opcode.tee_local: vui32PL,
-    Opcode.get_global: vui32PL,
-    Opcode.set_global: vui32PL,
+    def __repr__(self):
+        return f"{self.opcode.name}" + (f"<{self.payload}>" if self.payload is not None else "")
 
-    Opcode.i32_load: memImmPL,
-    Opcode.i64_load: memImmPL,
-    Opcode.f32_load: memImmPL,
-    Opcode.f64_load: memImmPL,
-    Opcode.i32_load8_s: memImmPL,
-    Opcode.i32_load8_u: memImmPL,
-    Opcode.i32_load16_s: memImmPL,
-    Opcode.i32_load16_u: memImmPL,
-    Opcode.i64_load8_s: memImmPL,
-    Opcode.i64_load8_u: memImmPL,
-    Opcode.i64_load16_s: memImmPL,
-    Opcode.i64_load16_u: memImmPL,
-    Opcode.i64_load32_s: memImmPL,
-    Opcode.i64_load32_u: memImmPL,
-    Opcode.i32_store: memImmPL,
-    Opcode.i64_store: memImmPL,
-    Opcode.f32_store: memImmPL,
-    Opcode.f64_store: memImmPL,
-    Opcode.i32_store8: memImmPL,
-    Opcode.i32_store16: memImmPL,
-    Opcode.i64_store8: memImmPL,
-    Opcode.i64_store16: memImmPL,
-    Opcode.i64_store32: memImmPL,
-    Opcode.current_memory: vui1PL,
-    Opcode.grow_memory: vui1PL,
 
-    Opcode.i32_const: vi32PL,
-    Opcode.i64_const: vi64PL,
-    Opcode.f32_const: ui32PL,
-    Opcode.f64_const: ui64PL,
-}
+class OpcodeFn:
+    def __init__(self):
+        self.fn_array = [None] * (0xbf + 1)
+
+    def set(self, op, fn_tuple):
+        idx = op.value
+        self.fn_array[idx] = fn_tuple
+
+    def get(self, op):
+        return self.fn_array[op.value]
+
+    def get_parser(self, op):
+        entry = self.get(op)
+        if entry is not None:
+            return entry[0]
+        return None
+
+
+opFn = OpcodeFn()
+
+opFn.set(Opcode.block, (blockTypePL,))
+opFn.set(Opcode.loop, (blockTypePL,))
+opFn.set(Opcode._if, (blockTypePL,))
+opFn.set(Opcode.br, (vui32PL,))
+opFn.set(Opcode.br_if, (vui32PL,))
+opFn.set(Opcode.br_table, (brTablePL,))
+
+opFn.set(Opcode.call, (vui32PL,))
+opFn.set(Opcode.call_indirect, (callIndPL,))
+
+opFn.set(Opcode.get_local, (vui32PL,))
+opFn.set(Opcode.set_local, (vui32PL,))
+opFn.set(Opcode.tee_local, (vui32PL,))
+opFn.set(Opcode.get_global, (vui32PL,))
+opFn.set(Opcode.set_global, (vui32PL,))
+
+opFn.set(Opcode.i32_load, (memImmPL,))
+opFn.set(Opcode.i64_load, (memImmPL,))
+opFn.set(Opcode.f32_load, (memImmPL,))
+opFn.set(Opcode.f64_load, (memImmPL,))
+opFn.set(Opcode.i32_load8_s, (memImmPL,))
+opFn.set(Opcode.i32_load8_u, (memImmPL,))
+opFn.set(Opcode.i32_load16_s, (memImmPL,))
+opFn.set(Opcode.i32_load16_u, (memImmPL,))
+opFn.set(Opcode.i64_load8_s, (memImmPL,))
+opFn.set(Opcode.i64_load8_u, (memImmPL,))
+opFn.set(Opcode.i64_load16_s, (memImmPL,))
+opFn.set(Opcode.i64_load16_u, (memImmPL,))
+opFn.set(Opcode.i64_load32_s, (memImmPL,))
+opFn.set(Opcode.i64_load32_u, (memImmPL,))
+opFn.set(Opcode.i32_store, (memImmPL,))
+opFn.set(Opcode.i64_store, (memImmPL,))
+opFn.set(Opcode.f32_store, (memImmPL,))
+opFn.set(Opcode.f64_store, (memImmPL,))
+opFn.set(Opcode.i32_store8, (memImmPL,))
+opFn.set(Opcode.i32_store16, (memImmPL,))
+opFn.set(Opcode.i64_store8, (memImmPL,))
+opFn.set(Opcode.i64_store16, (memImmPL,))
+opFn.set(Opcode.i64_store32, (memImmPL,))
+opFn.set(Opcode.current_memory, (vui1PL,))
+opFn.set(Opcode.grow_memory, (vui1PL,))
+
+opFn.set(Opcode.i32_const, (vi32PL,))
+opFn.set(Opcode.i64_const, (vi64PL,))
+opFn.set(Opcode.f32_const, (ui32PL,))
+opFn.set(Opcode.f64_const, (ui64PL,))
 
 
 def makePayload(op, parser, f):
     payload, len = parser(f)
-    return (op, payload), 1 + len
+    return Op(op, payload), 1 + len
 
 def parse_opcode(f):
     byte = readUInt(f, 1)
     op = Opcode(byte)
-    if op not in opcodeParsers:
-        return (op, None), 1
+    payloadFn = opFn.get_parser(op)
+    if payloadFn is None:
+        return Op(op, None), 1
     else:
-        payloadFn = opcodeParsers[op]
         return makePayload(op, payloadFn, f)
 
 
@@ -734,16 +805,17 @@ def parse_code_section(name, f, payload_len):
         total_len += body_head_size
         codelen = body_size - body_head_size - 1
         code = f.read(codelen)
-        total_len += codelen
+        #total_len += codelen
         end = readUInt(f, 1)
         total_len += 1
         assert end == endOpcode
         code_file = io.BytesIO(code)
         opcodes = []
         while code_file.tell() != len(code):
-            opcode = parse_opcode(code_file)
+            opcode, l = parse_opcode(code_file)
+            total_len += l
             opcodes.append(opcode)
-        body = (local_count, locals, opcodes)
+        body = (locals, opcodes)
         print((locals, opcodes[:2], "etc."))
         bodies.append(body)
     assert total_len == payload_len
@@ -781,11 +853,42 @@ def parse(f):
         parse_section(f)
     print("+++ Done Parsing WASM")
 
+class Function:
+    def __init__(self, type, body):
+        self.type = type
+        self.body = body
+
+    def __repr__(self):
+        return f"<FN type:{self.type} body: {self.body}>"
+
+def createStructures():
+    global data
+    assert len(data.function_section) == len(data.code_section)
+    fns = data.function_section
+    types = data.type_section
+    bodies = data.code_section
+    functions = []
+    for i in range(len(data.function_section)):
+        fn_type_idx = fns[i]
+        fn_type = types[fn_type_idx]
+        assert fn_type[0] == type_constr.func or fn_type[0] == type_constr.anyfunc
+        fn_body = bodies[i]
+        fn = Function(fn_type, fn_body)
+        functions.append(fn)
+    for fn in functions:
+        print(fn)
+
+
+def runMain():
+    pass
+
 
 def main():
     filename = sys.argv[1]
     with open(filename, "rb") as f:
         parse(f)
-
+    createStructures()
+    if data.start_section is not None:
+        runMain()
 
 main()

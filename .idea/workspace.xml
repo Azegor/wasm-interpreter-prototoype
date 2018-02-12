@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="ca353fc7-8c11-4a68-9d6a-e1ee42e32c08" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change beforePath="$PROJECT_DIR$/prototype.py" afterPath="$PROJECT_DIR$/prototype.py" />
-    </list>
+    <list default="true" id="ca353fc7-8c11-4a68-9d6a-e1ee42e32c08" name="Default" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -17,22 +14,12 @@
       <file leaf-file-name="prototype.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/prototype.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="80">
-              <caret line="4" column="9" lean-forward="false" selection-start-line="4" selection-start-column="9" selection-end-line="4" selection-end-column="9" />
+            <state relative-caret-position="360">
+              <caret line="18" column="0" lean-forward="true" selection-start-line="18" selection-start-column="0" selection-end-line="18" selection-end-column="0" />
               <folding>
                 <element signature="e#19#29#0" expanded="true" />
-                <element signature="e#454#4341#0" expanded="false" />
+                <element signature="e#5875#6308#0" expanded="false" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="enum.py" pinned="false" current-in-tab="false">
-        <entry file="file:///usr/lib64/python3.6/enum.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="133">
-              <caret line="545" column="0" lean-forward="false" selection-start-line="545" selection-start-column="0" selection-end-line="545" selection-end-column="0" />
-              <folding />
             </state>
           </provider>
         </entry>
@@ -48,27 +35,14 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>external_kind</find>
-      <find>parsing section</find>
-      <find>TODO</find>
-      <find>parse_memory_type</find>
-      <find>parse_global_type</find>
-      <find>read(2)</find>
-      <find>endOpcode</find>
-      <find>get_global</find>
-      <find>element section</find>
-      <find>parse_init_expr</find>
-      <find>parse_global_variable</find>
       <find>global</find>
       <find>global section</find>
       <find>test</find>
-      <find>parse_code_section</find>
       <find>parse_value_type</find>
       <find>bytes</find>
       <find>readvaruint</find>
       <find>code =</find>
       <find>fileisEof</find>
-      <find>parse_opcode</find>
       <find>0x23</find>
       <find>Opcode</find>
       <find>Opcode(</find>
@@ -78,10 +52,24 @@
       <find>value_type</find>
       <find>value_type(E</find>
       <find>main()</find>
+      <find>import</find>
+      <find>main</find>
+      <find>function_section</find>
+      <find>parse_function_section</find>
+      <find>parse_type_section</find>
+      <find>type_con</find>
+      <find>type_constructor</find>
+      <find>memImmPL</find>
+      <find>code section</find>
+      <find>read_type_constr</find>
+      <find>type_constr</find>
+      <find>parse_code_section</find>
+      <find>parse_opcode</find>
     </findStrings>
     <replaceStrings>
       <replace>payload_len</replace>
       <replace>readUInt</replace>
+      <replace>type_constr</replace>
     </replaceStrings>
   </component>
   <component name="Git.Settings">
@@ -117,6 +105,7 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
+      <pane id="Scratches" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -128,7 +117,6 @@
           <select />
         </subPane>
       </pane>
-      <pane id="Scratches" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -179,14 +167,15 @@
     <configuration />
   </component>
   <component name="ToolWindowManager">
-    <frame x="1860" y="25" width="1600" height="870" extended-state="6" />
+    <frame x="1600" y="0" width="1920" height="1080" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.24968071" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.24933827" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32965517" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3287483" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32965517" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3986207" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32912722" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.39852786" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
@@ -231,7 +220,7 @@
       <breakpoints-dialog>
         <breakpoints-dialog />
       </breakpoints-dialog>
-      <option name="time" value="5" />
+      <option name="time" value="6" />
     </breakpoint-manager>
     <watches-manager />
   </component>
@@ -242,7 +231,7 @@
           <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
             <element signature="e#19#29#0" expanded="true" />
-            <element signature="e#454#4341#0" expanded="false" />
+            <element signature="e#5875#6308#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -253,60 +242,46 @@
           <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
             <element signature="e#19#29#0" expanded="true" />
-            <element signature="e#454#4341#0" expanded="false" />
+            <element signature="e#5875#6308#0" expanded="false" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/.PyCharmEdu2017.3/system/python_stubs/-2066100795/builtins.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="430">
-          <caret line="811" column="8" lean-forward="false" selection-start-line="811" selection-start-column="8" selection-end-line="811" selection-end-column="8" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/.PyCharmEdu2017.3/system/python_stubs/-2066100795/_io.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2609">
-          <caret line="1277" column="8" lean-forward="false" selection-start-line="1277" selection-start-column="8" selection-end-line="1277" selection-end-column="8" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/opcodes.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="140">
-          <caret line="7" column="0" lean-forward="true" selection-start-line="0" selection-start-column="0" selection-end-line="7" selection-end-column="0" />
-          <folding>
-            <element signature="e#0#11#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///data/ssd/share/Programming/WasmInterpreter/prototype.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="329">
-          <caret line="762" column="0" lean-forward="false" selection-start-line="762" selection-start-column="0" selection-end-line="762" selection-end-column="0" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///usr/lib64/python3.6/enum.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="133">
-          <caret line="545" column="0" lean-forward="false" selection-start-line="545" selection-start-column="0" selection-end-line="545" selection-end-column="0" />
-          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/prototype.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="80">
-          <caret line="4" column="9" lean-forward="false" selection-start-line="4" selection-start-column="9" selection-end-line="4" selection-end-column="9" />
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
             <element signature="e#19#29#0" expanded="true" />
-            <element signature="e#454#4341#0" expanded="false" />
+            <element signature="e#5875#6308#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/.PyCharmEdu2017.3/system/python_stubs/-2066100795/_io.py" />
+    <entry file="file://$PROJECT_DIR$/opcodes.py" />
+    <entry file="file:///data/ssd/share/Programming/WasmInterpreter/prototype.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="329">
+          <caret line="762" column="0" lean-forward="false" selection-start-line="762" selection-start-column="0" selection-end-line="762" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/.PyCharmEdu2017.3/system/python_stubs/-2066100795/builtins.py" />
+    <entry file="file:///usr/lib64/python3.6/enum.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="133">
+          <caret line="545" column="0" lean-forward="false" selection-start-line="545" selection-start-column="0" selection-end-line="545" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/prototype.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="360">
+          <caret line="18" column="0" lean-forward="true" selection-start-line="18" selection-start-column="0" selection-end-line="18" selection-end-column="0" />
+          <folding>
+            <element signature="e#19#29#0" expanded="true" />
+            <element signature="e#5875#6308#0" expanded="false" />
           </folding>
         </state>
       </provider>

@@ -26,8 +26,7 @@ def createStructures(data):
         fn_body = bodies[i]
         fn = Function(fn_type, fn_body)
         functions.append(fn)
-    for fn in functions:
-        print(fn)
+        print((fn_type, fn_body[:3]))
 
 
 def runMainFn():
@@ -43,5 +42,6 @@ def main():
     createStructures(res)
     if res.start_section is not None:
         runMainFn()
+
 
 main()

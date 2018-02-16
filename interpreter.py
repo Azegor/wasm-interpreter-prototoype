@@ -1,6 +1,5 @@
 import opcode
 import parser
-from sexpr import *
 from opcode import Opcode as O
 from operations import *
 
@@ -44,7 +43,7 @@ class Interpreter:
         fn = self.functions[id]
         assert fn is not None
         assert len(params) == len(fn.params_types())
-        print(" ### Executing function", SExprToStr(fn.type), "with parameters", params)
+        print(" ### Executing function", fn.type, "with parameters", params)
         frame = self.stack.push(len(params))
         self.ST = frame
         frame.setupCall(params, fn.locals)
@@ -52,7 +51,7 @@ class Interpreter:
 
         codelen = len(fn.code)
         while self.instr_ptr < codelen:
-            print(f"@{self.instr_ptr}")
+            print(f"\n@{self.instr_ptr}")
             self.execute_instr(fn.code[self.instr_ptr])
             print(f"Current stack: {repr(self.stack)}")
             self.instr_ptr += 1
@@ -71,7 +70,7 @@ class Interpreter:
 
         self.stack.pop()
         self.ST = self.stack.top()
-        print(" +++ Done executing function", SExprToStr(fn.type))
+        print(" +++ Done executing function", fn.type)
 
         print("returning", return_val)
         return return_val
@@ -90,7 +89,8 @@ class Interpreter:
                 params.append(StackValue(type, int(a)))
             else:
                 params.append(StackValue(type, float(a)))
-        self.run_function(fnId, params)
+        result = self.run_function(fnId, params)
+        print(f"#### Result = {result.val} ####")
 
     def execute_instr(self, instr):
         opFn = self.opFns[instr.opcode]
@@ -101,6 +101,7 @@ class Interpreter:
     class InstrBlock:
         def __init__(self, type = None, parent = None):
             self.type = type
+            self.kind = O.unreachable
             self.startOffs = -1
             self.elseOffs = -1 # optional
             self.endOffs = -1
@@ -112,7 +113,7 @@ class Interpreter:
             self.startOffs = startOffset
             i = startOffset + 1
             end = len(instrList)
-            is_if = instrList[startOffset].opcode == O.if_
+            self.kind = instrList[startOffset].opcode
             while i < end:
                 op = instrList[i]
                 if op.opcode in (O.if_, O.loop, O.block): # nested even more
@@ -121,11 +122,19 @@ class Interpreter:
                     i = blk.createInnerBlocks(instrList, i, depth + 1) # skip over the instrs.
                 elif op.opcode == O.end:
                     self.endOffs = i
+                    instrList[i] = opcode.Op(op.opcode, self)
                     return i
-                elif is_if and op.opcode == O.else_:
+                elif self.kind == O.if_ and op.opcode == O.else_:
                     assert self.elseOffs == -1 # can only be there once
                     instrList[i] = opcode.Op(op.opcode, self) # replace instr.
                     self.elseOffs = i
+                elif op.opcode in (O.br, O.br_if):
+                    break_depth = op.payload
+                    break_blk = self
+                    for i in range(break_depth):
+                        break_blk = break_depth.parent
+                        assert break_blk is not None
+                    instrList[i] = opcode.Op(op.opcode, break_blk)
                 i += 1
             return i
 
@@ -170,10 +179,7 @@ class Interpreter:
             return None
 
         def __repr__(self):
-            res = ""
-            for f in self.frames:
-                res += repr(f) + "\n"
-            return res
+            return f"Size: {len(self.frames)}; Top Entry -> {self.frames[-1]}"
 
     class StackFrame:
         def __init__(self, local_cnt):
@@ -197,6 +203,10 @@ class Interpreter:
             val = self.stack.pop()
             self.locals[localNr] = val
 
+        def tee(self, localNr):
+            val = self.stack[-1]
+            self.locals[localNr] = val
+
         def push(self, val):
             self.stack.append(val)
 
@@ -210,7 +220,7 @@ class Interpreter:
             return len(self.stack)
 
         def __repr__(self):
-            return f"Locals: {self.locals}, Stack: {self.stack}"
+            return f"Locals: {self.locals}, OpStack: {self.stack}"
 
     # TODO: define operations
 
@@ -229,14 +239,14 @@ class Interpreter:
         res = calledFn(val1, val2)
         self.ST.push(res)
 
-    def opIf(self, payload):
+    def opIf(self, block):
         do_branch = self.ST.pop()
         assert do_branch.type == Type.i32
         if do_branch.val == 0:
-            self.instr_ptr = payload.elseOffs
+            self.instr_ptr = block.elseOffs
 
-    def opElse(self, payload):
-        self.instr_ptr = payload.endOffs
+    def opElse(self, block):
+        self.instr_ptr = block.endOffs
 
     def opCall(self, fnid):
         fn = self.functions[fnid]
@@ -253,8 +263,24 @@ class Interpreter:
         self.instr_ptr = self.InstrPtrStack.pop()
         self.ST.push(return_val)
 
+    def opBr(self, block):
+        self.instr_ptr = block.endOffs
+
+    def opBrIf(self, block):
+        do_branch = self.ST.pop()
+        assert do_branch.type == Type.i32
+        if do_branch.val != 0:
+            self.opBr(block)
+
+    def opEnd(self, block):
+        if block.kind == O.loop:
+            self.instr_ptr = block.startOffs
+            print("looping")
+        else:
+            print("doing nothing")
+
     def opNothing(self, payload):
-        print("End of Block")
+        print("Doing Nothing")
         pass
 
 
@@ -264,13 +290,13 @@ class Interpreter:
         self.opFns = {
             O.unreachable: self.opTODO,
             O.nop: self.opTODO,
-            O.block: self.opTODO,
-            O.loop: self.opTODO,
+            O.block: self.opNothing,
+            O.loop: self.opNothing,
             O.if_: self.opIf,
             O.else_: self.opElse,
-            O.end: self.opNothing,
+            O.end: self.opEnd,
             O.br: self.opTODO,
-            O.br_if: self.opTODO,
+            O.br_if: self.opBrIf,
             O.br_table: self.opTODO,
             O.return_: self.opTODO,
 
@@ -284,8 +310,8 @@ class Interpreter:
 
             # variable access
             O.get_local: lambda p: self.ST.load(p),
-            O.set_local: self.opTODO,
-            O.tee_local: self.opTODO,
+            O.set_local: lambda p: self.ST.store(p),
+            O.tee_local: lambda p: self.ST.tee(p),
             O.get_global: self.opTODO,
             O.set_global: self.opTODO,
 

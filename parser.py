@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import os
 import math
+import struct
 
 from opcode import *
 
@@ -96,6 +97,12 @@ class Parser:
 
     def readUInt(self, l):
         return int.from_bytes(self.readBytes(l), byteorder='little')
+
+    def readF32(self):
+        return struct.unpack('<f', self.readBytes(4))[0]
+
+    def readF64(self):
+        return struct.unpack('<d', self.readBytes(8))[0]
 
     def readVarUintLen(self, l):
         res = 0
@@ -508,8 +515,8 @@ class Parser:
 
         self.opFn.set(Opcode.i32_const, (self.vi32PL,))
         self.opFn.set(Opcode.i64_const, (self.vi64PL,))
-        self.opFn.set(Opcode.f32_const, (self.ui32PL,))
-        self.opFn.set(Opcode.f64_const, (self.ui64PL,))
+        self.opFn.set(Opcode.f32_const, (self.readF32,))
+        self.opFn.set(Opcode.f64_const, (self.readF64,))
 
     def read_opcode(self):
         byte = self.readUInt(1)

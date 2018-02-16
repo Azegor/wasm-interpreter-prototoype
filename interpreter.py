@@ -3,12 +3,6 @@ import parser
 from sexpr import *
 from opcode import Opcode as O
 from operations import *
-import enum
-
-class State(enum.IntEnum):
-    Next = 0,
-    Jump = 1,
-    Return = 2,
 
 
 class Interpreter:
@@ -16,10 +10,11 @@ class Interpreter:
         self.parse_res = parse_res
         self.functions = []
         self.stack = self.Stack()
+        self.instr_ptr = 0
+        self.InstrPtrStack = []
         self.ST = None # current stack top
         self.opFns = dict()
         self.init_op_fns()
-        self.state = State.Next
         self.jump_offset = 0
         self.exp_fn = {}
 
@@ -55,19 +50,12 @@ class Interpreter:
         frame.setupCall(params, fn.locals)
         print(f"Current stack: {repr(self.stack)}")
 
-        instrCounter = 0
         codelen = len(fn.code)
-        while instrCounter < codelen:
-            print(f"@{instrCounter}")
-            self.execute_instr(fn.code[instrCounter])
+        while self.instr_ptr < codelen:
+            print(f"@{self.instr_ptr}")
+            self.execute_instr(fn.code[self.instr_ptr])
             print(f"Current stack: {repr(self.stack)}")
-            if self.state == State.Next:
-                instrCounter += 1
-            elif self.state == State.Jump:
-                instrCounter += self.jump_offset
-            elif self.state == State.Return:
-                break
-            self.state = State.Next # reset
+            self.instr_ptr += 1
 
         # handle return
         returntype = fn.type[1][1]
@@ -94,6 +82,7 @@ class Interpreter:
             raise Exception(f"Unknown function {name}")
         params = []
         param_types = self.functions[fnId].params_types()
+        assert len(param_types) == len(args)
         for i in range(len(args)):
             a = args[i]
             type = param_types[i]
@@ -123,7 +112,6 @@ class Interpreter:
             self.startOffs = startOffset
             i = startOffset + 1
             end = len(instrList)
-            print(instrList)
             is_if = instrList[startOffset].opcode == O.if_
             while i < end:
                 op = instrList[i]
@@ -136,6 +124,7 @@ class Interpreter:
                     return i
                 elif is_if and op.opcode == O.else_:
                     assert self.elseOffs == -1 # can only be there once
+                    instrList[i] = opcode.Op(op.opcode, self) # replace instr.
                     self.elseOffs = i
                 i += 1
             return i
@@ -234,22 +223,39 @@ class Interpreter:
         self.ST.push(res)
 
     def binOp(self, calledFn):
-        val1 = self.ST.pop()
         val2 = self.ST.pop()
+        val1 = self.ST.pop()
         assert val1.type == val2.type
         res = calledFn(val1, val2)
         self.ST.push(res)
 
     def opIf(self, payload):
         do_branch = self.ST.pop()
-        print(do_branch)
-        print(payload)
         assert do_branch.type == Type.i32
-        if do_branch.val != 0:
-            self.jump_offset = 1
-        else:
-            self.jump_offset = payload.elseOffs - payload.startOffs + 1
-        self.state = State.Jump
+        if do_branch.val == 0:
+            self.instr_ptr = payload.elseOffs
+
+    def opElse(self, payload):
+        self.instr_ptr = payload.endOffs
+
+    def opCall(self, fnid):
+        fn = self.functions[fnid]
+        param_types = fn.params_types()
+        args = []
+        for pt in param_types: # TODO is this the right order or backwards?
+            print (pt)
+            p = self.ST.pop()
+            assert p.type == pt
+            args.append(p)
+        self.InstrPtrStack.append(self.instr_ptr)
+        self.instr_ptr = 0
+        return_val = self.run_function(fnid, tuple(args))
+        self.instr_ptr = self.InstrPtrStack.pop()
+        self.ST.push(return_val)
+
+    def opNothing(self, payload):
+        print("End of Block")
+        pass
 
 
     def init_op_fns(self):
@@ -261,15 +267,15 @@ class Interpreter:
             O.block: self.opTODO,
             O.loop: self.opTODO,
             O.if_: self.opIf,
-            O.else_: self.opTODO,
-            O.end: self.opTODO,
+            O.else_: self.opElse,
+            O.end: self.opNothing,
             O.br: self.opTODO,
             O.br_if: self.opTODO,
             O.br_table: self.opTODO,
             O.return_: self.opTODO,
 
             # call operators
-            O.call: self.opTODO,
+            O.call: self.opCall,
             O.call_indirect: self.opTODO,
 
             # parametric operators

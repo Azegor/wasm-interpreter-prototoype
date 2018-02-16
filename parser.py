@@ -12,10 +12,14 @@ class VersionError(Exception):
     def __str__(self):
         return repr(self.value)
 
-
-class TypeConstructor(enum.IntEnum):
+class CustEnum(enum.IntEnum):
     def __repr__(self):
         return self.name
+    def __str__(self):
+        return self.name
+
+
+class Type(CustEnum):
     i32 = 0x7f
     i64 = 0x7e
     f32 = 0x7d
@@ -27,16 +31,18 @@ class TypeConstructor(enum.IntEnum):
 
 class ExternalKind(enum.IntEnum):
     def __repr__(self):
-        return f"Ext<{self.name}>"
-    Function = 0
+        return self.name.lower()
+    def __str__(self):
+        return self.name.lower()
+    Func = 0
     Table = 1
     Memory = 2
     Global = 3
 
 
-class NameType(enum.IntEnum):
+class NameType(CustEnum):
     def __repr__(self):
-        return f"N<{self.name}>"
+        return self.name
     Module = 0
     Function = 1
     Local = 2
@@ -128,13 +134,13 @@ class Parser:
     def readVarInt(self, l):
         return self.readVarIntLen(l)[0]
 
-    def read_type_constr(self):
+    def read_type(self):
         byte = self.readVarInt(7)
-        type_c = TypeConstructor(byte)
+        type_c = Type(byte)
         return type_c
 
     def read_fn_type(self):
-        form = self.read_type_constr()
+        form = self.read_type()
         param_count = self.readVarUint(32)
         param_types = []
         for i in range(param_count):
@@ -145,7 +151,7 @@ class Parser:
         for i in range(return_count):
             return_type = self.parse_value_type()
             return_types.append(return_type)
-        return form, param_types, return_types
+        return form, (param_types, return_types)
 
     def read_resizable_limits(self):
         limits_flag = self.readVarUint(1)
@@ -160,8 +166,6 @@ class Parser:
     def read_init_expr(self):
         op = self.read_opcode()
         res = self.readUInt(1)
-        if res != 0x0b:
-            print("oops")
         assert res == 0x0b
         return op
 
@@ -304,7 +308,7 @@ class Parser:
             field_len = self.readVarUint(32)
             field_str = self.readUTF8(field_len)
             kind = ExternalKind(self.readUInt(1))
-            if kind == ExternalKind.Function:
+            if kind == ExternalKind.Func:
                 type = self.readVarUint(32)
             elif kind == ExternalKind.Table:
                 type = self.read_table_type()
@@ -336,7 +340,7 @@ class Parser:
 
     def parse_value_type(self):
         ptype = self.readVarUint(7)
-        param_type = TypeConstructor(ptype)
+        param_type = Type(ptype)
         return param_type
 
     def parse_function_section(self, payload_len):
@@ -419,7 +423,7 @@ class Parser:
 
     def blockTypePL(self):
         val = self.readVarInt(7)
-        return TypeConstructor(val)
+        return Type(val)
 
     def brTablePL(self):
         target_count = self.readVarUint(32)

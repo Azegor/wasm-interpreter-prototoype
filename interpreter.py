@@ -45,7 +45,7 @@ class Interpreter:
     def run_function(self, id, params):
         fn = self.functions[id]
         assert fn is not None
-        assert len(params) == len(fn.type[1][0])
+        assert len(params) == len(fn.params_types())
         print(" ### Executing function", SExprToStr(fn.type), "with parameters", params)
         frame = self.stack.push(len(params))
         self.ST = frame
@@ -75,12 +75,21 @@ class Interpreter:
         print("returning", return_val)
         return return_val
 
-    def run_exported_fn(self, name, params):
-        fn = self.exp_fn.get(name)
+    def run_exported_fn(self, name, args):
+        fnId = self.exp_fn.get(name)
         print(self.exp_fn)
-        if fn is None:
+        if fnId is None:
             raise Exception(f"Unknown function {name}")
-        self.run_function(fn, params)
+        params = []
+        param_types = self.functions[fnId].params_types()
+        for i in range(len(args)):
+            a = args[i]
+            type = param_types[i]
+            if type in (Type.i32, Type.i64):
+                params.append(StackValue(type, int(a)))
+            else:
+                params.append(StackValue(type, float(a)))
+        self.run_function(fnId, params)
 
     def execute_instr(self, instr):
         opFn = self.opFns[instr.opcode]
@@ -100,6 +109,12 @@ class Interpreter:
 
         def __str__(self):
             return SExprToStr(SExpr(self.type[0], (self.id,) + self.type[1:] + (self.locals, self.code)))
+
+        def params_types(self):
+            return self.type[1][0]
+
+        def return_types(self):
+            return self.type[1][1]
 
     class Stack:
         def __init__(self):
@@ -136,7 +151,7 @@ class Interpreter:
                 count = l[0]
                 type = l[1]
                 for i in range(count):
-                    self.locals.append(Interpreter.StackValue(type))
+                    self.locals.append(StackValue(type))
 
         def load(self, localNr):
             local = self.locals[localNr]
@@ -291,7 +306,7 @@ class Interpreter:
             O.i64_clz: self.opTODO,
             O.i64_ctz: self.opTODO,
             O.i64_popcnt: self.opTODO,
-            O.i64_add: self.opTODO,
+            O.i64_add: lambda p: self.binOp(add),
             O.i64_sub: self.opTODO,
             O.i64_mul: self.opTODO,
             O.i64_div_s: self.opTODO,
@@ -313,7 +328,7 @@ class Interpreter:
             O.f32_trunc: self.opTODO,
             O.f32_nearest: self.opTODO,
             O.f32_sqrt: self.opTODO,
-            O.f32_add: self.opTODO,
+            O.f32_add: lambda p: self.binOp(add),
             O.f32_sub: self.opTODO,
             O.f32_mul: self.opTODO,
             O.f32_div: self.opTODO,
@@ -327,7 +342,7 @@ class Interpreter:
             O.f64_trunc: self.opTODO,
             O.f64_nearest: self.opTODO,
             O.f64_sqrt: self.opTODO,
-            O.f64_add: self.opTODO,
+            O.f64_add: lambda p: self.binOp(add),
             O.f64_sub: self.opTODO,
             O.f64_mul: self.opTODO,
             O.f64_div: self.opTODO,

@@ -7,7 +7,8 @@ import enum
 
 class State(enum.IntEnum):
     Next = 0,
-    Return = 1,
+    Jump = 1,
+    Return = 2,
 
 
 class Interpreter:
@@ -19,6 +20,7 @@ class Interpreter:
         self.opFns = dict()
         self.init_op_fns()
         self.state = State.Next
+        self.jump_offset = 0
         self.exp_fn = {}
 
     def initialize(self):
@@ -31,8 +33,10 @@ class Interpreter:
             fn_type_idx = fns[id]
             fn_type = types[fn_type_idx]
             assert fn_type[0] == parser.Type.func or fn_type[0] == parser.Type.anyfunc
-            fn_body = bodies[id]
-            fn = self.Function(id, fn_type, fn_body)
+            locals, fn_code = bodies[id]
+            body = self.InstrBlock()
+            body.createInnerBlocks(fn_code)
+            fn = self.Function(id, fn_type, locals, body, fn_code)
             self.functions.append(fn)
 
         for name, type, id in data.export_section:
@@ -51,15 +55,19 @@ class Interpreter:
         frame.setupCall(params, fn.locals)
         print(f"Current stack: {repr(self.stack)}")
 
-        localInstrCounter = 0
+        instrCounter = 0
         codelen = len(fn.code)
-        while localInstrCounter < codelen:
-            self.execute_instr(fn.code[localInstrCounter])
+        while instrCounter < codelen:
+            print(f"@{instrCounter}")
+            self.execute_instr(fn.code[instrCounter])
             print(f"Current stack: {repr(self.stack)}")
             if self.state == State.Next:
-                localInstrCounter += 1
+                instrCounter += 1
+            elif self.state == State.Jump:
+                instrCounter += self.jump_offset
             elif self.state == State.Return:
                 break
+            self.state = State.Next # reset
 
         # handle return
         returntype = fn.type[1][1]
@@ -101,12 +109,47 @@ class Interpreter:
         print("executing", instr)
         opFn(instr.payload)
 
+    class InstrBlock:
+        def __init__(self, type = None, parent = None):
+            self.type = type
+            self.startOffs = -1
+            self.elseOffs = -1 # optional
+            self.endOffs = -1
+            self.parent = parent
+            self.depth = -1
+
+        def createInnerBlocks(self, instrList, startOffset = 0, depth = 0):
+            self.depth = depth
+            self.startOffs = startOffset
+            i = startOffset + 1
+            end = len(instrList)
+            print(instrList)
+            is_if = instrList[startOffset].opcode == O.if_
+            while i < end:
+                op = instrList[i]
+                if op.opcode in (O.if_, O.loop, O.block): # nested even more
+                    blk = Interpreter.InstrBlock(op.payload, self)
+                    instrList[i] = opcode.Op(op.opcode, blk) # replace instr.
+                    i = blk.createInnerBlocks(instrList, i, depth + 1) # skip over the instrs.
+                elif op.opcode == O.end:
+                    self.endOffs = i
+                    return i
+                elif is_if and op.opcode == O.else_:
+                    assert self.elseOffs == -1 # can only be there once
+                    self.elseOffs = i
+                i += 1
+            return i
+
+        def __repr__(self):
+            return f"[Block depth={self.depth}, len={self.endOffs - self.startOffs}]"
+
     class Function:
-        def __init__(self, id, type, body):
+        def __init__(self, id, type, locals, body, code):
             self.id = id
             self.type = type
-            self.locals = body[0]
-            self.code = body[1]
+            self.locals = locals
+            self.body = body # necessary?
+            self.code = code
 
         def __repr__(self):
             return f"<FN type:{self.type} body: {self.body}>"
@@ -183,8 +226,7 @@ class Interpreter:
     # TODO: define operations
 
     def opTODO(self, payload):
-        print("TODO: implement")
-        assert False
+        raise Exception("TODO implement")
 
     def unaryOp(self, calledFn):
         val = self.ST.pop()
@@ -198,6 +240,18 @@ class Interpreter:
         res = calledFn(val1, val2)
         self.ST.push(res)
 
+    def opIf(self, payload):
+        do_branch = self.ST.pop()
+        print(do_branch)
+        print(payload)
+        assert do_branch.type == Type.i32
+        if do_branch.val != 0:
+            self.jump_offset = 1
+        else:
+            self.jump_offset = payload.elseOffs - payload.startOffs + 1
+        self.state = State.Jump
+
+
     def init_op_fns(self):
         S = self.ST
         # TODO distinguish between signed and unsigned values!
@@ -206,7 +260,7 @@ class Interpreter:
             O.nop: self.opTODO,
             O.block: self.opTODO,
             O.loop: self.opTODO,
-            O.if_: self.opTODO,
+            O.if_: self.opIf,
             O.else_: self.opTODO,
             O.end: self.opTODO,
             O.br: self.opTODO,
@@ -335,33 +389,33 @@ class Interpreter:
             O.i64_shr_u: self.opTODO,
             O.i64_rotl: self.opTODO,
             O.i64_rotr: self.opTODO,
-            O.f32_abs: self.opTODO,
-            O.f32_neg: self.opTODO,
-            O.f32_ceil: self.opTODO,
-            O.f32_floor: self.opTODO,
-            O.f32_trunc: self.opTODO,
+            O.f32_abs: lambda p: self.unaryOp(abs_),
+            O.f32_neg: lambda p: self.unaryOp(neg),
+            O.f32_ceil: lambda p: self.unaryOp(ceil_),
+            O.f32_floor: lambda p: self.unaryOp(floor_),
+            O.f32_trunc: lambda p: self.unaryOp(trunc_),
             O.f32_nearest: self.opTODO,
-            O.f32_sqrt: self.opTODO,
+            O.f32_sqrt: lambda p: self.unaryOp(sqrt_),
             O.f32_add: lambda p: self.binOp(add),
-            O.f32_sub: self.opTODO,
-            O.f32_mul: self.opTODO,
-            O.f32_div: self.opTODO,
-            O.f32_min: self.opTODO,
-            O.f32_max: self.opTODO,
+            O.f32_sub: lambda p: self.binOp(sub),
+            O.f32_mul: lambda p: self.binOp(mul),
+            O.f32_div: lambda p: self.binOp(div_f),
+            O.f32_min: lambda p: self.binOp(min_),
+            O.f32_max: lambda p: self.binOp(max_),
             O.f32_copysign: self.opTODO,
-            O.f64_abs: self.opTODO,
-            O.f64_neg: self.opTODO,
-            O.f64_ceil: self.opTODO,
-            O.f64_floor: self.opTODO,
-            O.f64_trunc: self.opTODO,
+            O.f64_abs: lambda p: self.unaryOp(abs_),
+            O.f64_neg: lambda p: self.unaryOp(neg),
+            O.f64_ceil: lambda p: self.unaryOp(ceil_),
+            O.f64_floor: lambda p: self.unaryOp(floor_),
+            O.f64_trunc: lambda p: self.unaryOp(trunc_),
             O.f64_nearest: self.opTODO,
-            O.f64_sqrt: self.opTODO,
+            O.f64_sqrt: lambda p: self.unaryOp(sqrt_),
             O.f64_add: lambda p: self.binOp(add),
-            O.f64_sub: self.opTODO,
-            O.f64_mul: self.opTODO,
-            O.f64_div: self.opTODO,
-            O.f64_min: self.opTODO,
-            O.f64_max: self.opTODO,
+            O.f64_sub: lambda p: self.binOp(sub),
+            O.f64_mul: lambda p: self.binOp(mul),
+            O.f64_div: lambda p: self.binOp(div_f),
+            O.f64_min: lambda p: self.binOp(min_),
+            O.f64_max: lambda p: self.binOp(max_),
             O.f64_copysign: self.opTODO,
 
             # conversions

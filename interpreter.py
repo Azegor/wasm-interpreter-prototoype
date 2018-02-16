@@ -2,6 +2,13 @@ import opcode
 import parser
 from sexpr import *
 from opcode import Opcode as O
+from operations import *
+import enum
+
+class State(enum.IntEnum):
+    Continue = 0,
+    Return = 1,
+
 
 class Interpreter:
     def __init__(self, parse_res):
@@ -11,6 +18,7 @@ class Interpreter:
         self.ST = None # current stack top
         self.opFns = dict()
         self.init_op_fns()
+        self.state = State.Continue
 
     def initialize(self):
         data = self.parse_res
@@ -40,11 +48,25 @@ class Interpreter:
         for instr in fn.code:
             self.execute_instr(instr)
             print(f"Current stack: {repr(self.stack)}")
+            if self.state == State.Return:
+                break
+
+        # handle return
+        returntype = fn.type[1][1]
+        if len(returntype) > 0:
+            type = returntype[0]
+            return_val = self.ST.pop()
+            assert type == return_val.type
+        else:
+            return_val = None
 
 
         self.stack.pop()
         self.ST = self.stack.top()
         print(" +++ Done executing function", SExprToStr(fn.type))
+
+        print("returning", return_val)
+        return return_val
 
     def execute_instr(self, instr):
         opFn = self.opFns[instr.opcode]
@@ -113,27 +135,14 @@ class Interpreter:
         def push(self, val):
             self.stack.append(val)
 
-        def pop(self, val):
+        def push_new(self, type, val):
+            self.stack.append(StackValue(type, val))
+
+        def pop(self):
             return self.stack.pop()
 
         def __repr__(self):
             return f"Locals: {self.locals}, Stack: {self.stack}"
-
-    class StackValue:
-        def __init__(self, type, val=None):
-            assert type in (parser.Type.i32, parser.Type.i64, parser.Type.f32, parser.Type.i64)
-            self.type = type
-            if val is not None:
-                self.val = val
-            else:
-                if type in (parser.Type.i32, parser.Type.i64):
-                    self.val = 0
-                else:
-                    self.val = 0.0
-
-
-        def __repr__(self):
-            return f"{self.type.name}({self.val})"
 
     # TODO: define operations
 
@@ -141,7 +150,14 @@ class Interpreter:
         print("TODO: implement")
         assert False
 
+    def binOp(self, calledFn):
+        val1 = self.ST.pop()
+        val2 = self.ST.pop()
+        res = calledFn(val1, val2)
+        self.ST.push(res)
+
     def init_op_fns(self):
+        S = self.ST
         self.opFns = {
             O.unreachable: self.opTODO,
             O.nop: self.opTODO,
@@ -198,7 +214,7 @@ class Interpreter:
             O.grow_memory: self.opTODO,
 
             # Constants
-            O.i32_const: self.opTODO,
+            O.i32_const: lambda p: self.ST.push_new(parser.Type.i32, p),
             O.i64_const: self.opTODO,
             O.f32_const: self.opTODO,
             O.f64_const: self.opTODO,
@@ -243,7 +259,7 @@ class Interpreter:
             O.i32_clz: self.opTODO,
             O.i32_ctz: self.opTODO,
             O.i32_popcnt: self.opTODO,
-            O.i32_add: self.opTODO,
+            O.i32_add: lambda p: self.binOp(add),
             O.i32_sub: self.opTODO,
             O.i32_mul: self.opTODO,
             O.i32_div_s: self.opTODO,

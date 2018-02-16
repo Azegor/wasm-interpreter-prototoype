@@ -3,6 +3,7 @@ import sys
 
 import parser
 from interpreter import Interpreter
+from operations import StackValue
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
         res = p.parse()
     interpr = Interpreter(res)
     interpr.initialize()
-    interpr.run_function(0, (Interpreter.StackValue(parser.Type.i32, 42),))
+    interpr.run_function(0, (StackValue(parser.Type.i32, 42),))
 
 
 main()

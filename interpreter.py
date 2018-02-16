@@ -6,7 +6,7 @@ from operations import *
 import enum
 
 class State(enum.IntEnum):
-    Continue = 0,
+    Next = 0,
     Return = 1,
 
 
@@ -18,7 +18,7 @@ class Interpreter:
         self.ST = None # current stack top
         self.opFns = dict()
         self.init_op_fns()
-        self.state = State.Continue
+        self.state = State.Next
         self.exp_fn = {}
 
     def initialize(self):
@@ -52,19 +52,25 @@ class Interpreter:
         frame.setupCall(params, fn.locals)
         print(f"Current stack: {repr(self.stack)}")
 
-        for instr in fn.code:
-            self.execute_instr(instr)
+        localInstrCounter = 0
+        codelen = len(fn.code)
+        while localInstrCounter < codelen:
+            self.execute_instr(fn.code[localInstrCounter])
             print(f"Current stack: {repr(self.stack)}")
-            if self.state == State.Return:
+            if self.state == State.Next:
+                localInstrCounter += 1
+            elif self.state == State.Return:
                 break
 
         # handle return
         returntype = fn.type[1][1]
         if len(returntype) > 0:
+            assert self.ST.size() == 1
             type = returntype[0]
             return_val = self.ST.pop()
             assert type == return_val.type
         else:
+            assert self.ST.size() == 0
             return_val = None
 
 
@@ -169,6 +175,9 @@ class Interpreter:
 
         def pop(self):
             return self.stack.pop()
+
+        def size(self):
+            return len(self.stack)
 
         def __repr__(self):
             return f"Locals: {self.locals}, Stack: {self.stack}"

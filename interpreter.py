@@ -50,6 +50,7 @@ class Interpreter:
         print(f"Current stack: {repr(self.stack)}")
 
         codelen = len(fn.code)
+        print(fn.code)
         while self.instr_ptr < codelen:
             print(f"\n@{self.instr_ptr}")
             self.execute_instr(fn.code[self.instr_ptr])
@@ -265,6 +266,7 @@ class Interpreter:
 
     def opBr(self, block):
         self.instr_ptr = block.endOffs
+        # TODO: unwind operand stack!
 
     def opBrIf(self, block):
         do_branch = self.ST.pop()

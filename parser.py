@@ -124,7 +124,7 @@ class Parser:
     def readVarIntLen(self, l):
         res = 0
         shift = 0
-        size = 0
+        size = l
         len = 0
         while True:
             len += 1

@@ -34,7 +34,6 @@ class Interpreter:
             fn_body = bodies[id]
             fn = self.Function(id, fn_type, fn_body)
             self.functions.append(fn)
-            print(fn)
 
         for name, type, id in data.export_section:
             if type is parser.ExternalKind.Func:
@@ -83,7 +82,6 @@ class Interpreter:
 
     def run_exported_fn(self, name, args):
         fnId = self.exp_fn.get(name)
-        print(self.exp_fn)
         if fnId is None:
             raise Exception(f"Unknown function {name}")
         params = []
@@ -188,14 +186,21 @@ class Interpreter:
         print("TODO: implement")
         assert False
 
+    def unaryOp(self, calledFn):
+        val = self.ST.pop()
+        res = calledFn(val)
+        self.ST.push(res)
+
     def binOp(self, calledFn):
         val1 = self.ST.pop()
         val2 = self.ST.pop()
+        assert val1.type == val2.type
         res = calledFn(val1, val2)
         self.ST.push(res)
 
     def init_op_fns(self):
         S = self.ST
+        # TODO distinguish between signed and unsigned values!
         self.opFns = {
             O.unreachable: self.opTODO,
             O.nop: self.opTODO,
@@ -253,62 +258,62 @@ class Interpreter:
 
             # Constants
             O.i32_const: lambda p: self.ST.push_new(parser.Type.i32, p),
-            O.i64_const: self.opTODO,
-            O.f32_const: self.opTODO,
-            O.f64_const: self.opTODO,
+            O.i64_const: lambda p: self.ST.push_new(parser.Type.i64, p),
+            O.f32_const: lambda p: self.ST.push_new(parser.Type.f32, p),
+            O.f64_const: lambda p: self.ST.push_new(parser.Type.f64, p),
 
             # comparison operators
-            O.i32_eqz: self.opTODO,
-            O.i32_eq: self.opTODO,
-            O.i32_ne: self.opTODO,
-            O.i32_lt_s: self.opTODO,
-            O.i32_lt_u: self.opTODO,
-            O.i32_gt_s: self.opTODO,
-            O.i32_gt_u: self.opTODO,
-            O.i32_le_s: self.opTODO,
-            O.i32_le_u: self.opTODO,
-            O.i32_ge_s: self.opTODO,
-            O.i32_ge_u: self.opTODO,
-            O.i64_eqz: self.opTODO,
-            O.i64_eq: self.opTODO,
-            O.i64_ne: self.opTODO,
-            O.i64_lt_s: self.opTODO,
-            O.i64_lt_u: self.opTODO,
-            O.i64_gt_s: self.opTODO,
-            O.i64_gt_u: self.opTODO,
-            O.i64_le_s: self.opTODO,
-            O.i64_le_u: self.opTODO,
-            O.i64_ge_s: self.opTODO,
-            O.i64_ge_u: self.opTODO,
-            O.f32_eq: self.opTODO,
-            O.f32_ne: self.opTODO,
-            O.f32_lt: self.opTODO,
-            O.f32_gt: self.opTODO,
-            O.f32_le: self.opTODO,
-            O.f32_ge: self.opTODO,
-            O.f64_eq: self.opTODO,
-            O.f64_ne: self.opTODO,
-            O.f64_lt: self.opTODO,
-            O.f64_gt: self.opTODO,
-            O.f64_le: self.opTODO,
-            O.f64_ge: self.opTODO,
+            O.i32_eqz: lambda p: self.unaryOp(eqz),
+            O.i64_eq: lambda p: self.binOp(eq),
+            O.i64_ne: lambda p: self.binOp(ne),
+            O.i32_lt_s: lambda p: self.binOp(lt),
+            O.i32_lt_u: lambda p: self.binOp(lt),
+            O.i32_gt_s: lambda p: self.binOp(gt),
+            O.i32_gt_u: lambda p: self.binOp(gt),
+            O.i32_le_s: lambda p: self.binOp(le),
+            O.i32_le_u: lambda p: self.binOp(le),
+            O.i32_ge_s: lambda p: self.binOp(ge),
+            O.i32_ge_u: lambda p: self.binOp(ge),
+            O.i64_eqz: lambda p: self.unaryOp(eqz),
+            O.i64_eq: lambda p: self.binOp(eq),
+            O.i64_ne: lambda p: self.binOp(ne),
+            O.i64_lt_s: lambda p: self.binOp(lt),
+            O.i64_lt_u: lambda p: self.binOp(lt),
+            O.i64_gt_s: lambda p: self.binOp(gt),
+            O.i64_gt_u: lambda p: self.binOp(gt),
+            O.i64_le_s: lambda p: self.binOp(le),
+            O.i64_le_u: lambda p: self.binOp(le),
+            O.i64_ge_s: lambda p: self.binOp(ge),
+            O.i64_ge_u: lambda p: self.binOp(ge),
+            O.f32_eq: lambda p: self.binOp(eq),
+            O.f32_ne: lambda p: self.binOp(ne),
+            O.f32_lt: lambda p: self.binOp(lt),
+            O.f32_gt: lambda p: self.binOp(gt),
+            O.f32_le: lambda p: self.binOp(le),
+            O.f32_ge: lambda p: self.binOp(ge),
+            O.f64_eq: lambda p: self.binOp(eq),
+            O.f64_ne: lambda p: self.binOp(ne),
+            O.f64_lt: lambda p: self.binOp(lt),
+            O.f64_gt: lambda p: self.binOp(gt),
+            O.f64_le: lambda p: self.binOp(le),
+            O.f64_ge: lambda p: self.binOp(ge),
 
             # numeric operators
             O.i32_clz: self.opTODO,
             O.i32_ctz: self.opTODO,
             O.i32_popcnt: self.opTODO,
             O.i32_add: lambda p: self.binOp(add),
-            O.i32_sub: self.opTODO,
-            O.i32_mul: self.opTODO,
-            O.i32_div_s: self.opTODO,
-            O.i32_div_u: self.opTODO,
-            O.i32_rem_s: self.opTODO,
-            O.i32_rem_u: self.opTODO,
-            O.i32_and: self.opTODO,
-            O.i32_or: self.opTODO,
+            O.i32_sub: lambda p: self.binOp(sub),
+            O.i32_mul: lambda p: self.binOp(mul),
+            O.i32_div_s: lambda p: self.binOp(div_i),
+            O.i32_div_u: lambda p: self.binOp(div_i),
+            O.i32_rem_s: lambda p: self.binOp(rem),
+            O.i32_rem_u: lambda p: self.binOp(rem),
+            O.i32_and: lambda p: self.binOp(and_),
+            O.i32_or: lambda p: self.binOp(or_),
             O.i32_xor: lambda p: self.binOp(xor),
-            O.i32_shl: self.opTODO,
-            O.i32_shr_s: self.opTODO,
+            O.i32_shl: lambda p: self.binOp(shl),
+            O.i32_shr_s: lambda p: self.binOp(shr),
             O.i32_shr_u: self.opTODO,
             O.i32_rotl: self.opTODO,
             O.i32_rotr: self.opTODO,
@@ -316,17 +321,17 @@ class Interpreter:
             O.i64_ctz: self.opTODO,
             O.i64_popcnt: self.opTODO,
             O.i64_add: lambda p: self.binOp(add),
-            O.i64_sub: self.opTODO,
-            O.i64_mul: self.opTODO,
-            O.i64_div_s: self.opTODO,
-            O.i64_div_u: self.opTODO,
-            O.i64_rem_s: self.opTODO,
-            O.i64_rem_u: self.opTODO,
-            O.i64_and: self.opTODO,
-            O.i64_or: self.opTODO,
-            O.i64_xor: self.opTODO,
-            O.i64_shl: self.opTODO,
-            O.i64_shr_s: self.opTODO,
+            O.i64_sub: lambda p: self.binOp(sub),
+            O.i64_mul: lambda p: self.binOp(mul),
+            O.i64_div_s: lambda p: self.binOp(div_i),
+            O.i64_div_u: lambda p: self.binOp(div_i),
+            O.i64_rem_s: lambda p: self.binOp(rem),
+            O.i64_rem_u: lambda p: self.binOp(rem),
+            O.i64_and: lambda p: self.binOp(and_),
+            O.i64_or: lambda p: self.binOp(or_),
+            O.i64_xor: lambda p: self.binOp(xor),
+            O.i64_shl: lambda p: self.binOp(shl),
+            O.i64_shr_s: lambda p: self.binOp(shr),
             O.i64_shr_u: self.opTODO,
             O.i64_rotl: self.opTODO,
             O.i64_rotr: self.opTODO,

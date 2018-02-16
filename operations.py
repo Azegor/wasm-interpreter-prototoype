@@ -20,3 +20,7 @@ class StackValue:
 def add(v1, v2):
     assert v1.type == v2.type
     return StackValue(v1.type, v1.val + v2.val)
+
+def xor(v1, v2):
+    assert v1.type == v2.type
+    return StackValue(v1.type, v1.val ^ v2.val)

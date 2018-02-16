@@ -19,6 +19,7 @@ class Interpreter:
         self.opFns = dict()
         self.init_op_fns()
         self.state = State.Continue
+        self.exp_fn = {}
 
     def initialize(self):
         data = self.parse_res
@@ -34,6 +35,12 @@ class Interpreter:
             fn = self.Function(id, fn_type, fn_body)
             self.functions.append(fn)
             print(fn)
+
+        for name, type, id in data.export_section:
+            if type is parser.ExternalKind.Func:
+                self.exp_fn[name] = id
+
+
 
     def run_function(self, id, params):
         fn = self.functions[id]
@@ -67,6 +74,13 @@ class Interpreter:
 
         print("returning", return_val)
         return return_val
+
+    def run_exported_fn(self, name, params):
+        fn = self.exp_fn.get(name)
+        print(self.exp_fn)
+        if fn is None:
+            raise Exception(f"Unknown function {name}")
+        self.run_function(fn, params)
 
     def execute_instr(self, instr):
         opFn = self.opFns[instr.opcode]
@@ -268,7 +282,7 @@ class Interpreter:
             O.i32_rem_u: self.opTODO,
             O.i32_and: self.opTODO,
             O.i32_or: self.opTODO,
-            O.i32_xor: self.opTODO,
+            O.i32_xor: lambda p: self.binOp(xor),
             O.i32_shl: self.opTODO,
             O.i32_shr_s: self.opTODO,
             O.i32_shr_u: self.opTODO,

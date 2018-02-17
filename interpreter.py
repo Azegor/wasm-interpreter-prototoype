@@ -11,6 +11,7 @@ class Interpreter:
         self.stack = self.Stack()
         self.instr_ptr = 0
         self.InstrPtrStack = []
+        self.BlockStackSizes = []
         self.ST = None # current stack top
         self.opFns = dict()
         self.init_op_fns()
@@ -91,7 +92,7 @@ class Interpreter:
             else:
                 params.append(StackValue(type, float(a)))
         result = self.run_function(fnId, params)
-        print(f"#### Result = {result.val} ####")
+        print(f"#### Result = {result.load()} ####")
 
     def execute_instr(self, instr):
         opFn = self.opFns[instr.opcode]
@@ -136,6 +137,8 @@ class Interpreter:
                         break_blk = break_depth.parent
                         assert break_blk is not None
                     instrList[i] = opcode.Op(op.opcode, break_blk)
+                elif op.opcode == O.return_:
+                    instrList[i] = opcode.Op(op.opcode, len(instrList) - 1)
                 i += 1
             return i
 
@@ -152,9 +155,6 @@ class Interpreter:
 
         def __repr__(self):
             return f"<FN type:{self.type} body: {self.body}>"
-
-        def __str__(self):
-            return SExprToStr(SExpr(self.type[0], (self.id,) + self.type[1:] + (self.locals, self.code)))
 
         def params_types(self):
             return self.type[1][0]
@@ -220,6 +220,11 @@ class Interpreter:
         def size(self):
             return len(self.stack)
 
+        def pop_upto(self, size):
+            if size > self.size():
+                print("#### pruning OpStack ####")
+                self.stack = self.stack[:size]
+
         def __repr__(self):
             return f"Locals: {self.locals}, OpStack: {self.stack}"
 
@@ -228,79 +233,102 @@ class Interpreter:
     def opTODO(self, payload):
         raise Exception("TODO implement")
 
-    def unaryOp(self, calledFn):
+    def unaryOp(self, calledFn, signed=True):
         val = self.ST.pop()
-        res = calledFn(val)
+        res = calledFn(val, signed)
         self.ST.push(res)
 
-    def binOp(self, calledFn):
+    def binOp(self, calledFn, signed=True):
         val2 = self.ST.pop()
         val1 = self.ST.pop()
         assert val1.type == val2.type
-        res = calledFn(val1, val2)
+        res = calledFn(val1, val2, signed)
         self.ST.push(res)
+        print (f"{val1} {calledFn.__name__} {val2} = {res}")
+
+    def binOpDiffType(self, calledFn, signed=True):
+        val2 = self.ST.pop()
+        val1 = self.ST.pop()
+        res = calledFn(val1, val2, signed)
+        self.ST.push(res)
+        print (f"{val1} {calledFn.__name__} {val2} = {res}")
 
     def opIf(self, block):
         do_branch = self.ST.pop()
         assert do_branch.type == Type.i32
-        if do_branch.val == 0:
+        if do_branch.load() == 0:
             self.instr_ptr = block.elseOffs
 
     def opElse(self, block):
         self.instr_ptr = block.endOffs
+        self.adjust_opstack()
 
     def opCall(self, fnid):
         fn = self.functions[fnid]
         param_types = fn.params_types()
         args = []
-        for pt in param_types: # TODO is this the right order or backwards?
-            print (pt)
+        for pt in param_types:
             p = self.ST.pop()
             assert p.type == pt
             args.append(p)
         self.InstrPtrStack.append(self.instr_ptr)
         self.instr_ptr = 0
-        return_val = self.run_function(fnid, tuple(args))
+        return_val = self.run_function(fnid, tuple(args.reverse()))  # TODO is this the right order or backwards?
         self.instr_ptr = self.InstrPtrStack.pop()
         self.ST.push(return_val)
 
     def opBr(self, block):
         self.instr_ptr = block.endOffs
+        self.adjust_opstack()
         # TODO: unwind operand stack!
 
     def opBrIf(self, block):
         do_branch = self.ST.pop()
         assert do_branch.type == Type.i32
-        if do_branch.val != 0:
+        if do_branch.load() != 0:
             self.opBr(block)
 
     def opEnd(self, block):
+        print("Block kind:", block.kind, end=" ")
         if block.kind == O.loop:
             self.instr_ptr = block.startOffs
-            print("looping")
+            print("-> looping")
         else:
-            print("doing nothing")
+            print("-> leaving the block -> pop operands")
+            self.adjust_opstack()
+
+    def opBlockStart(self, payload):
+        self.save_opstack()
+
+    def opReturn(self, target):
+        print("Jump to the End")
+        self.instr_ptr = target
 
     def opNothing(self, payload):
         print("Doing Nothing")
         pass
 
+    def save_opstack(self):
+        self.BlockStackSizes.append(self.ST.size())
+
+    def adjust_opstack(self):
+        self.ST.pop_upto(self.BlockStackSizes.pop())
+
 
     def init_op_fns(self):
         S = self.ST
-        # TODO distinguish between signed and unsigned values!
         self.opFns = {
             O.unreachable: self.opTODO,
             O.nop: self.opTODO,
-            O.block: self.opNothing,
-            O.loop: self.opNothing,
+            O.block: self.opBlockStart,
+            O.loop: self.opBlockStart,
             O.if_: self.opIf,
             O.else_: self.opElse,
             O.end: self.opEnd,
             O.br: self.opTODO,
             O.br_if: self.opBrIf,
             O.br_table: self.opTODO,
-            O.return_: self.opTODO,
+            O.return_: self.opReturn,
 
             # call operators
             O.call: self.opCall,
@@ -355,24 +383,24 @@ class Interpreter:
             O.i64_eq: lambda p: self.binOp(eq),
             O.i64_ne: lambda p: self.binOp(ne),
             O.i32_lt_s: lambda p: self.binOp(lt),
-            O.i32_lt_u: lambda p: self.binOp(lt),
+            O.i32_lt_u: lambda p: self.binOp(lt, False),
             O.i32_gt_s: lambda p: self.binOp(gt),
-            O.i32_gt_u: lambda p: self.binOp(gt),
+            O.i32_gt_u: lambda p: self.binOp(gt, False),
             O.i32_le_s: lambda p: self.binOp(le),
-            O.i32_le_u: lambda p: self.binOp(le),
+            O.i32_le_u: self.opTODO,
             O.i32_ge_s: lambda p: self.binOp(ge),
-            O.i32_ge_u: lambda p: self.binOp(ge),
+            O.i32_ge_u: self.opTODO,
             O.i64_eqz: lambda p: self.unaryOp(eqz),
             O.i64_eq: lambda p: self.binOp(eq),
             O.i64_ne: lambda p: self.binOp(ne),
             O.i64_lt_s: lambda p: self.binOp(lt),
-            O.i64_lt_u: lambda p: self.binOp(lt),
+            O.i64_lt_u: self.opTODO,
             O.i64_gt_s: lambda p: self.binOp(gt),
-            O.i64_gt_u: lambda p: self.binOp(gt),
+            O.i64_gt_u: self.opTODO,
             O.i64_le_s: lambda p: self.binOp(le),
-            O.i64_le_u: lambda p: self.binOp(le),
+            O.i64_le_u: self.opTODO,
             O.i64_ge_s: lambda p: self.binOp(ge),
-            O.i64_ge_u: lambda p: self.binOp(ge),
+            O.i64_ge_u: self.opTODO,
             O.f32_eq: lambda p: self.binOp(eq),
             O.f32_ne: lambda p: self.binOp(ne),
             O.f32_lt: lambda p: self.binOp(lt),
@@ -394,15 +422,15 @@ class Interpreter:
             O.i32_sub: lambda p: self.binOp(sub),
             O.i32_mul: lambda p: self.binOp(mul),
             O.i32_div_s: lambda p: self.binOp(div_i),
-            O.i32_div_u: lambda p: self.binOp(div_i),
+            O.i32_div_u: self.opTODO,
             O.i32_rem_s: lambda p: self.binOp(rem),
-            O.i32_rem_u: lambda p: self.binOp(rem),
+            O.i32_rem_u: self.opTODO,
             O.i32_and: lambda p: self.binOp(and_),
             O.i32_or: lambda p: self.binOp(or_),
             O.i32_xor: lambda p: self.binOp(xor),
-            O.i32_shl: lambda p: self.binOp(shl),
-            O.i32_shr_s: lambda p: self.binOp(shr),
-            O.i32_shr_u: self.opTODO,
+            O.i32_shl: lambda p: self.binOpDiffType(shl),
+            O.i32_shr_s: lambda p: self.binOpDiffType(shr_s),
+            O.i32_shr_u: lambda p: self.binOpDiffType(shr_u_32),
             O.i32_rotl: self.opTODO,
             O.i32_rotr: self.opTODO,
             O.i64_clz: self.opTODO,
@@ -412,15 +440,15 @@ class Interpreter:
             O.i64_sub: lambda p: self.binOp(sub),
             O.i64_mul: lambda p: self.binOp(mul),
             O.i64_div_s: lambda p: self.binOp(div_i),
-            O.i64_div_u: lambda p: self.binOp(div_i),
+            O.i64_div_u: self.opTODO,
             O.i64_rem_s: lambda p: self.binOp(rem),
-            O.i64_rem_u: lambda p: self.binOp(rem),
+            O.i64_rem_u: self.opTODO,
             O.i64_and: lambda p: self.binOp(and_),
             O.i64_or: lambda p: self.binOp(or_),
             O.i64_xor: lambda p: self.binOp(xor),
-            O.i64_shl: lambda p: self.binOp(shl),
-            O.i64_shr_s: lambda p: self.binOp(shr),
-            O.i64_shr_u: self.opTODO,
+            O.i64_shl: lambda p: self.binOpDiffType(shl),
+            O.i64_shr_s: lambda p: self.binOpDiffType(shr_s),
+            O.i64_shr_u: lambda p: self.binOpDiffType(shr_u_64),
             O.i64_rotl: self.opTODO,
             O.i64_rotr: self.opTODO,
             O.f32_abs: lambda p: self.unaryOp(abs_),
@@ -453,13 +481,13 @@ class Interpreter:
             O.f64_copysign: self.opTODO,
 
             # conversions
-            O.i32_wrap_i64: self.opTODO,
+            O.i32_wrap_i64: lambda p: self.unaryOp(wrap32),
             O.i32_trunc_s_f32: self.opTODO,
             O.i32_trunc_u_f32: self.opTODO,
             O.i32_trunc_s_f64: self.opTODO,
             O.i32_trunc_u_f64: self.opTODO,
-            O.i64_extend_s_i32: self.opTODO,
-            O.i64_extend_u_i32: self.opTODO,
+            O.i64_extend_s_i32: self.opNothing,
+            O.i64_extend_u_i32: self.opNothing,
             O.i64_trunc_s_f32: self.opTODO,
             O.i64_trunc_u_f32: self.opTODO,
             O.i64_trunc_s_f64: self.opTODO,

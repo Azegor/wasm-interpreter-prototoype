@@ -29,7 +29,10 @@ class StackValue:
     def store(self, val, signed=True):
         struct_type, bits = typeToStruct(self.type, signed)
         if bits != -1:
-            val = val & ((2 ** bits) - 1) # truncate
+            if val >= 0:
+                val = val & ((2 ** bits) - 1) # truncate
+            else:
+                val = ~(~val & ((2 ** bits) - 1)) # truncate
         self.val = struct.pack(struct_type, val)
 
     def __repr__(self):
@@ -68,9 +71,9 @@ def wrap32(v, sgn): return StackValue(Type.i32, v.load(sgn) & 0xffffffff, sgn)
 def min_(v1, v2, sgn): return StackValue(Type.i32, min(v1.load(sgn), v2.load(sgn)), sgn)
 def max_(v1, v2, sgn): return StackValue(Type.i32, max(v1.load(sgn), v2.load(sgn)), sgn)
 
-def lt(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) < v2.load(sgn)), sgn)
-def gt(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) > v2.load(sgn)), sgn)
-def le(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) <= v2.load(sgn)), sgn)
-def ge(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) >= v2.load(sgn)), sgn)
-def eq(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) == v2.load(sgn)), sgn)
-def ne(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) != v2.load(sgn)), sgn)
+def lt(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) < v2.load(sgn)))
+def gt(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) > v2.load(sgn)))
+def le(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) <= v2.load(sgn)))
+def ge(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) >= v2.load(sgn)))
+def eq(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) == v2.load(sgn)))
+def ne(v1, v2, sgn): return StackValue(Type.i32, int(v1.load(sgn) != v2.load(sgn)))

@@ -20,6 +20,9 @@ class Interpreter:
 
     def initialize(self):
         data = self.parse_res
+        if data.function_section is None:
+            print("No function section .. exiting")
+            return
         assert len(data.function_section) == len(data.code_section)
         fns = data.function_section
         types = data.type_section
@@ -271,16 +274,16 @@ class Interpreter:
             p = self.ST.pop()
             assert p.type == pt
             args.append(p)
+        args.reverse() # TODO is this the right order or backwards?
         self.InstrPtrStack.append(self.instr_ptr)
         self.instr_ptr = 0
-        return_val = self.run_function(fnid, tuple(args.reverse()))  # TODO is this the right order or backwards?
+        return_val = self.run_function(fnid, tuple(args))
         self.instr_ptr = self.InstrPtrStack.pop()
         self.ST.push(return_val)
 
     def opBr(self, block):
         self.instr_ptr = block.endOffs
         self.adjust_opstack()
-        # TODO: unwind operand stack!
 
     def opBrIf(self, block):
         do_branch = self.ST.pop()
